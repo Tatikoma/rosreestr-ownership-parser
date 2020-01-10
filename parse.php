@@ -24,19 +24,20 @@ $solveCaptcha = function($content) use($api){
 $getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
     $baseURL = 'https://rosreestr.ru';
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/79.0.3945.79 Chrome/79.0.3945.79 Safari/537.36');
-    curl_setopt($ch, CURLOPT_COOKIEFILE, 'php://memory');
-    curl_setopt($ch, CURLOPT_COOKIEJAR, 'php://memory');
-
     do {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/79.0.3945.79 Chrome/79.0.3945.79 Safari/537.36');
+        curl_setopt($ch, CURLOPT_COOKIEFILE, 'php://memory');
+        curl_setopt($ch, CURLOPT_COOKIEJAR, 'php://memory');
+
         curl_setopt($ch, CURLOPT_POST, 0);
         curl_setopt($ch, CURLOPT_HEADER, 1);
         curl_setopt($ch, CURLOPT_URL, $baseURL . '/wps/portal/p/cc_ib_portal_services/online_request');
         $result = curl_exec($ch);
+        print "Initial request ok\n";
 
         preg_match('#<img src="([^"]+)" id=\"captchaImage2\">#u', $result, $captcha);
         $captcha = $captcha[1];
@@ -54,12 +55,16 @@ $getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
 
         $result = curl_exec($ch);
         if(strlen($result) < 100){
+            print 'Wrong captcha (length ' . strlen($result) . ")\n";
             // wrong captcha
+            curl_close($ch);
             continue;
         }
+        print "Captcha ok\n";
 
         $solvedCaptcha = $solveCaptcha($result);
         if(!$solvedCaptcha){
+            curl_close($ch);
             continue;
         }
 
@@ -88,6 +93,7 @@ $getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
         $result = curl_exec($ch);
 
         if(strpos($result, 'Текст с картинки введен неверно') !== false){
+            curl_close($ch);
             continue;
         }
 
@@ -100,6 +106,8 @@ $getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
         curl_setopt($ch, CURLOPT_URL, $finalURL);
         curl_setopt($ch, CURLOPT_POST, 0);
         $result = curl_exec($ch);
+
+        curl_close($ch);
 
         preg_match_all("#>([^<]+обственность\)[^<]+)<#mu", $result, $ownershipIds);
         $ownershipIds = $ownershipIds[1];
@@ -140,6 +148,7 @@ while($row = fgetcsv($fh)){
     if(isset($parsedData[$key])){
         continue;
     }
+    print date('[Y-m-d H:i:s] - ') . "Processing next {$key}\n";
     $data = $getOwnershipAndArea($row[2]);
     fputcsv($rh, [
         $row[1],
