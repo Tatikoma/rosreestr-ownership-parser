@@ -5,7 +5,7 @@ require_once __DIR__ . '/imagetotext.php';
 
 $api = new ImageToText();
 $api->setVerboseMode(true);
-$api->setKey(readline('anti-captcha.com API key: '));
+$api->setKey('ace54bccd74e3a7b1be6ac6630b9a879');
 $api->setNumericFlag(true);
 
 $solveCaptcha = function($content) use($api){
@@ -119,9 +119,23 @@ $getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
     while(1);
 };
 
+$parsedData = [];
+if(is_readable('result.csv')){
+    $fh = fopen('result.csv', 'rb');
+    while($row = fgetcsv($fh)){
+        $key = $row[0] . $row[1];
+        $parsedData[$key] = true;
+    }
+    fclose($fh);
+}
+
 $fh = fopen('data-1576963478324.csv', 'rb');
-$rh = fopen('result.csv', 'wb');
+$rh = fopen('result.csv', 'ab');
 while($row = fgetcsv($fh)){
+    $key = $row[1] . $row[0];
+    if(isset($parsedData[$key])){
+        continue;
+    }
     $data = $getOwnershipAndArea($row[2]);
     fputcsv($rh, [
         $row[1],
@@ -130,6 +144,7 @@ while($row = fgetcsv($fh)){
         $row[2],
         implode("\r\n", $data['ownership']),
     ]);
+    exit;
 }
 fclose($fh);
 fclose($rh);
