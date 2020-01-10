@@ -53,6 +53,10 @@ $getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
         curl_setopt($ch, CURLOPT_URL, $captchaURL);
 
         $result = curl_exec($ch);
+        if(strlen($result) < 100){
+            // wrong captcha
+            continue;
+        }
 
         $solvedCaptcha = $solveCaptcha($result);
         if(!$solvedCaptcha){
@@ -144,7 +148,6 @@ while($row = fgetcsv($fh)){
         $row[2],
         implode("\r\n", $data['ownership']),
     ]);
-    exit;
 }
 fclose($fh);
 fclose($rh);
