@@ -34,6 +34,7 @@
 
 # mpeltonen/sbt-idea plugin
 .idea_modules/
+.idea/*
 
 # JIRA plugin
 atlassian-ide-plugin.xml
@@ -51,3 +52,7 @@ protected/runtime/*
 protected/data/*.db
 themes/classic/views/
 
+# result files & key files
+*.txt
+result*.csv
+*.tmp

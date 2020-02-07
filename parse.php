@@ -3,9 +3,15 @@
 require_once __DIR__ . '/anticaptcha.php';
 require_once __DIR__ . '/imagetotext.php';
 
+if(is_readable('anticaptcha-apikey.txt')){
+    $anticaptchaKey = file_get_contents('anticaptcha-apikey.txt');
+}
+else{
+    $anticaptchaKey = readline('Please enter AntiCaptcha.com API Key: ');
+}
 $api = new ImageToText();
 $api->setVerboseMode(true);
-$api->setKey('ace54bccd74e3a7b1be6ac6630b9a879');
+$api->setKey($anticaptchaKey);
 $api->setNumericFlag(true);
 
 $solveCaptcha = function($content) use($api){
