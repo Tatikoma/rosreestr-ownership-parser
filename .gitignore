@@ -56,3 +56,9 @@ themes/classic/views/
 *.txt
 result*.csv
 *.tmp
+
+zip/*
+
+registry*.csv
+diff.csv
+querylist.csv
