@@ -74,6 +74,23 @@ do {
             "{$appLogin['Vaadin-Security-Key']}\x1D1\x1F{$targetElement}\x1FclickedKey\x1Fs\x1E1\x1F{$targetElement}\x1FclickedColKey\x1Fs\x1E1,572,680,false,false,false,false,8,-1,-1\x1F{$targetElement}\x1FclickEvent\x1Fs\x1Etrue\x1F{$targetElement}\x1FclearSelections\x1Fb\x1E1\x1C\x1F{$targetElement}\x1Fselected\x1Fc"
         );
 
+        // type of report
+        // 1 = object
+        // 2 = ownership
+
+        /*
+         * "id":"PID182",
+            "style":"horizontal",
+            "immediate":true,
+            "type":"optiongroup",
+            "v":{
+            "selected":[
+            "1"
+            ]
+            }
+         */
+        //VAADINKEY1PID182selectedc
+        //VAADINKEY2PID182selectedc
 
         $captchaSrc = $baseURL . preg_replace('#(?<=!!/).+#', findSrcByContentType($result, 'application/octet-stream'), $location);
 
