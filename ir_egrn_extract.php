@@ -3,8 +3,8 @@
 $path = __DIR__ . '/zip/';
 $dh = opendir($path);
 
-if(!is_readable(__DIR__ . '/zip.bak') || !is_dir(__DIR__ . '/zip.bak')) {
-    mkdir(__DIR__ . '/zip.bak');
+if(!is_readable(__DIR__ . '/zip') || !is_dir(__DIR__ . '/zip')) {
+    mkdir(__DIR__ . '/zip');
 }
 
 $zip = new ZipArchive();
