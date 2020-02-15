@@ -6,7 +6,7 @@ if (is_readable('rosreestr-apikey.txt')) {
     $apiKey = readline('Please enter rosreestr.ru API Key: ');
 }
 
-$cityName = 'Москва';
+$cityName = 'Московская область';
 
 $baseURL = 'https://rosreestr.ru';
 
@@ -61,21 +61,30 @@ do {
 // @todo limit retry
         print "Request failed, error {$responseCode}. Retry\n";
     }
-} while ($responseCode >= 500);
-/*if(!is_readable('ir_egrn.tmp')) {
-$result = curl_exec($ch);
-file_put_contents('ir_egrn.tmp', $result);
-}
-else{
-$result = file_get_contents('ir_egrn.tmp');
-}*/
+    $isError = false;
+
+
+    preg_match('#Content-Location: ([^\n\r]+)#u', $result, $location);
+    if(isset($location[1])) {
+        $location = $location[1];
+    }
+    else{
+        $isError = true;
+    }
+
+    preg_match('#vaadin\.vaadinConfigurations\["(.+?)"\]\s*=\s*(.+?\});#', $result, $vaadin);
+    if(isset($vaadin[1])){
+        $appName = $vaadin[1];
+    }
+    else{
+        $isError = true;
+    }
+
+} while ($responseCode >= 500 || $isError);
+
 print "Initial request ok\n";
 
-preg_match('#Content-Location: ([^\n\r]+)#u', $result, $location);
-$location = $location[1];
 
-preg_match('#vaadin\.vaadinConfigurations\["(.+?)"\]\s*=\s*(.+?\});#', $result, $vaadin);
-$appName = $vaadin[1];
 $appConfig = $vaadin[2];
 $appConfig = str_replace('\'', '"', $appConfig);
 $appConfig = preg_replace('#([a-z]+):#ui', '"\\1":', $appConfig);
