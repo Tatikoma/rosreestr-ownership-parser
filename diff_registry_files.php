@@ -1,12 +1,12 @@
 <?php
 
-$registryFile = 'registry_20.08.2019.csv';
-$registryFree = 'registry_free_04.02.2020.csv';
+$registryFile = 'registry_pay.csv'; // old registry
+$registryFree = 'registry_free.csv'; // parsed site registry
 
 $oldData = [];
 $fh = fopen($registryFile, 'rb');
 while($row = fgetcsv($fh)){
-    $oldData[$row[0]] = $row[5];
+    $oldData[$row[3]] = $row[5];
 }
 fclose($fh);
 
@@ -25,6 +25,9 @@ foreach($newData as $cadastralNo => $newOwnership){
     $oldOwnership = trim($oldData[$cadastralNo]);
     $newOwnership = trim($newOwnership);
 
+    // remove share info
+    $oldOwnership = preg_replace('#\s\d+/\d+#', '', $oldOwnership);
+    $newOwnership = preg_replace('#\s\d+/\d+#', '', $newOwnership);
     // remove date
     $oldOwnership = preg_replace('#\d+\.\d+\.\d+#', '', $oldOwnership);
     $newOwnership = preg_replace('#\d+\.\d+\.\d+#', '', $newOwnership);
