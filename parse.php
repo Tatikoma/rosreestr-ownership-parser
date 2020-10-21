@@ -1,168 +1,77 @@
 <?php
 
-require_once __DIR__ . '/anticaptcha.php';
-require_once __DIR__ . '/imagetotext.php';
+$config = include __DIR__ . DIRECTORY_SEPARATOR . 'config.php';
 
-if(is_readable('anticaptcha-apikey.txt')){
-    $anticaptchaKey = file_get_contents('anticaptcha-apikey.txt');
-}
-else{
-    $anticaptchaKey = readline('Please enter AntiCaptcha.com API Key: ');
-}
-$api = new ImageToText();
-$api->setVerboseMode(true);
-$api->setKey($anticaptchaKey);
-$api->setNumericFlag(true);
-
-$solveCaptcha = function($content) use($api){
-    $api->setBody($content);
-    if (!$api->createTask()) {
-        return false;
-    }
-
-    if (!$api->waitForResult()) {
-        return false;
-    } else {
-        return $api->getTaskSolution();
-    }
-};
-
-$getOwnershipAndArea = function($cadastralNo) use($solveCaptcha){
-    $baseURL = 'https://rosreestr.ru';
-
-    do {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/79.0.3945.79 Chrome/79.0.3945.79 Safari/537.36');
-        curl_setopt($ch, CURLOPT_COOKIEFILE, 'php://memory');
-        curl_setopt($ch, CURLOPT_COOKIEJAR, 'php://memory');
-
-        curl_setopt($ch, CURLOPT_POST, 0);
-        curl_setopt($ch, CURLOPT_HEADER, 1);
-        curl_setopt($ch, CURLOPT_URL, $baseURL . '/wps/portal/p/cc_ib_portal_services/online_request');
-        $result = curl_exec($ch);
-        print "Initial request ok\n";
-
-        preg_match('#<img src="([^"]+)" id=\"captchaImage2\">#u', $result, $captcha);
-        $captcha = $captcha[1];
-        preg_match('#Content-Location: ([^\n\r]+)#u', $result, $location);
-        $location = $location[1];
-
-        preg_match('#<form action="([^"]+)"#u', $result, $form);
-        $form = $form[1];
-
-        $captchaURL = $baseURL . $location . $captcha . '?refresh=true&time=' . time() . random_int(100, 999);
-        $formURL = $baseURL . $location . $form;
-
-        curl_setopt($ch, CURLOPT_HEADER, 0);
-        curl_setopt($ch, CURLOPT_URL, $captchaURL);
-
-        $result = curl_exec($ch);
-        if(strlen($result) < 100){
-            print 'Wrong captcha (length ' . strlen($result) . ")\n";
-            // wrong captcha
-            curl_close($ch);
-            continue;
-        }
-        print "Captcha ok\n";
-
-        $solvedCaptcha = $solveCaptcha($result);
-        if(!$solvedCaptcha){
-            curl_close($ch);
-            continue;
-        }
-
-        curl_setopt($ch, CURLOPT_URL, $formURL);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'search_action' => 'true',
-            'subject' => '',
-            'region' => '',
-            'settlement' => '',
-            'search_type' => 'CAD_NUMBER',
-            'cad_num' => $cadastralNo,
-            'start_position' => '',
-            'obj_num' => '',
-            'old_number' => '',
-            'street_type' => 'str0',
-            'street' => '',
-            'house' => '',
-            'building' => '',
-            'structure' => '',
-            'apartment' => '',
-            'right_reg' => '',
-            'encumbrance_reg' => '',
-            'captchaText' => $solvedCaptcha,
-        ]));
-        curl_setopt($ch, CURLOPT_HEADER, 1);
-        $result = curl_exec($ch);
-
-        if(strpos($result, 'Текст с картинки введен неверно') !== false){
-            curl_close($ch);
-            continue;
-        }
-
-        preg_match('#<a href="([^"]+dbName=firLite&region_key=\d+)">#u', $result, $propertyDataUrl);
-        $propertyDataUrl = $propertyDataUrl[1];
-        preg_match('#Content-Location: ([^\n\r]+)#u', $result, $location);
-        $location = $location[1];
-
-        $finalURL = $baseURL . $location . $propertyDataUrl;
-        curl_setopt($ch, CURLOPT_URL, $finalURL);
-        curl_setopt($ch, CURLOPT_POST, 0);
-        $result = curl_exec($ch);
-
-        curl_close($ch);
-
-        preg_match_all("#>([^<]+обственность\)[^<]+)<#mu", $result, $ownershipIds);
-        $ownershipIds = $ownershipIds[1];
-
-        foreach($ownershipIds as &$ownershipId){
-            $ownershipId = html_entity_decode($ownershipId, null, 'UTF-8');
-            $ownershipId = str_replace(["\n","\r"],' ', $ownershipId);
-            $ownershipId = preg_replace('#\s+#u', ' ', $ownershipId);
-            $ownershipId = trim($ownershipId);
-        }
-        unset($ownershipId);
-
-        preg_match('#Площадь ОКС\'a:.+?<b>([^<]+)</b>#usm', $result, $area);
-        $area = $area[1];
-
-        return [
-            'ownership' => $ownershipIds,
-            'area' => $area,
-        ];
-    }
-    while(1);
-};
-
-$parsedData = [];
-if(is_readable('result.csv')){
-    $fh = fopen('result.csv', 'rb');
-    while($row = fgetcsv($fh)){
-        $key = $row[0] . $row[1];
-        $parsedData[$key] = true;
-    }
-    fclose($fh);
+if(isset($argv[1]) && $argv[1] == '--help'){
+    print "Скрипт для бесплатного парсинга номеров собственности" . PHP_EOL;
+    print "Парсит все помещения за раз, без возможности прервать" . PHP_EOL;
+    print PHP_EOL;
+    print "Usage: php parse.php" . PHP_EOL;
+    exit;
 }
 
-$fh = fopen('data-1576963478324.csv', 'rb');
-$rh = fopen('result.csv', 'ab');
-while($row = fgetcsv($fh)){
-    $key = $row[1] . $row[0];
-    if(isset($parsedData[$key])){
-        continue;
+$dbh = getDBH($config);
+
+$egrn = new IR_EGRN($config);
+
+$statement = $dbh->query('
+    SELECT premise_id, cadastral_no, ownership 
+    FROM premise
+', PDO::FETCH_ASSOC);
+
+$counter = [
+    'total' => 0,
+    'updated' => 0,
+    'notchanged' => 0,
+];
+
+$updateStatement = $dbh->prepare('
+    UPDATE premise
+    SET ownership = :ownership,
+        owner_name = NULL,
+        area = :area
+    WHERE premise_id = :premise_id
+');
+
+while($row = $statement->fetch(PDO::FETCH_ASSOC)){
+    print date('[Y-m-d H:i:s] - ') . "Processing next {$row['cadastral_no']}\n";
+    $data = $egrn->getOwnershipAndAreaFree($row['cadastral_no']);
+
+    $counter['total']++;
+
+    $oldOwnership = trim($row['ownership']);
+    $newOwnership = trim(implode("\n", $data['ownership']));
+
+    // remove share info
+    $oldOwnership = preg_replace('#\s\d+/\d+#', '', $oldOwnership);
+    $newOwnership = preg_replace('#\s\d+/\d+#', '', $newOwnership);
+    // remove date
+    $oldOwnership = preg_replace('#\d+\.\d+\.\d+#', '', $oldOwnership);
+    $newOwnership = preg_replace('#\d+\.\d+\.\d+#', '', $newOwnership);
+    // remove all except record number
+    $oldOwnership = preg_replace("#[^0-9:\\-/\n]#", '', $oldOwnership);
+    $newOwnership = preg_replace("#[^0-9:\\-/\n]#", '', $newOwnership);
+
+    // split ownership
+    $oldOwnership = explode("\n", $oldOwnership);
+    $newOwnership = explode("\n", $newOwnership);
+
+    /** @var string[] $diff */
+    $diff = array_diff($oldOwnership, $newOwnership);
+
+    if(count($diff) > 0){
+        $counter['updated']++;
+        $updateStatement->execute([
+            ':ownership' => implode("\n", $data['ownership']),
+            ':area' => str_replace(',', '.', $data['area']),
+            ':premise_id' => $row['premise_id'],
+        ]);
     }
-    print date('[Y-m-d H:i:s] - ') . "Processing next {$key}\n";
-    $data = $getOwnershipAndArea($row[2]);
-    fputcsv($rh, [
-        $row[1],
-        $row[0],
-        $data['area'],
-        $row[2],
-        implode("\r\n", $data['ownership']),
-    ]);
+    else{
+        $counter['notchanged']++;
+    }
 }
-fclose($fh);
-fclose($rh);
+
+print "Всего обработано {$counter['total']} записей" . PHP_EOL;
+print "Из них {$counter['updated']} записей обновлено" . PHP_EOL;
+print "Из них {$counter['notchanged']} записей не изменилось" . PHP_EOL;

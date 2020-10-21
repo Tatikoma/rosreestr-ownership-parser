@@ -52,17 +52,5 @@ protected/runtime/*
 protected/data/*.db
 themes/classic/views/
 
-# result files & key files
-*.txt
-result*.csv
-*.tmp
-*.old
-EGRN*
-extracted.csv
-
-zip/*
-zip.bak/*
-
-registry*.csv
-diff.csv
-querylist.csv
+# local config
+config.local.php

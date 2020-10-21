@@ -1,5 +1,10 @@
 <?php
 
+if (basename(__FILE__) == basename($_SERVER["SCRIPT_FILENAME"])) {
+    echo "Этот скрипт не должен выполняться напрямую" . PHP_EOL;
+    exit;
+}
+
 interface AntiCaptchaTaskProtocol {
 
     public function getPostData();
@@ -24,6 +29,7 @@ class Anticaptcha {
      */
     public function createTask() {
 
+        /** @noinspection PhpPossiblePolymorphicInvocationInspection */
         $postData = array(
             "clientKey" =>  $this->clientKey,
             "task"      =>  $this->getPostData()
@@ -164,6 +170,7 @@ class Anticaptcha {
             $CLIMsg  = $message;
         }
         echo $CLIMsg."\n";
+        return true;
     }
 
     public function setErrorMessage($message) {
@@ -190,10 +197,6 @@ class Anticaptcha {
         $this->scheme = $scheme;
     }
 
-    /**
-     * Set client access key, must be 32 bytes long
-     * @param string $key
-     */
     public function setKey($key) {
         $this->clientKey = $key;
     }

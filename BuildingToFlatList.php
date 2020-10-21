@@ -1,11 +1,22 @@
-<?php
+<?php /** @noinspection PhpUndefinedFieldInspection */
 
-$xml = simplexml_load_string(file_get_contents('Вандер.xml'));
+if(!isset($argv[1]) || $argv[1] == '--help'){
+    print "Вспомогательный скрипт для конвертации XML всего дома в CSV." . PHP_EOL;
+    print "xml-файл должен быть в директории runtime;" . PHP_EOL;
+    print "csv-файл будет помещен в директорию runtime." . PHP_EOL;
+    print PHP_EOL;
+    print "Usage: php BuildingToFlatList.php filename.xml" . PHP_EOL;
+    exit;
+}
 
-$fh = fopen('vander.csv', 'wb');
+$filenameInput = __DIR__ . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . $argv[1];
+$filenameOutput = __DIR__ . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . $argv[1] . '.csv';
+$xml = simplexml_load_string(file_get_contents($filenameInput));
+
+$fh = fopen($filenameOutput, 'wb');
 foreach($xml->Realty->Building->Flats->Flat as $flat){
     $cadastralNo = (string)$flat['CadastralNumber'];
-    var_dump($cadastralNo);
+
     $area = (string)$flat->Area;
     $levels = [];
     $numberOnPlan = [];

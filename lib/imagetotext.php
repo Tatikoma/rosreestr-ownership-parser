@@ -1,4 +1,10 @@
 <?php
+
+if (basename(__FILE__) == basename($_SERVER["SCRIPT_FILENAME"])) {
+    echo "Этот скрипт не должен выполняться напрямую" . PHP_EOL;
+    exit;
+}
+
 class ImageToText extends Anticaptcha implements AntiCaptchaTaskProtocol {
     private $body;
     private $phrase = false;

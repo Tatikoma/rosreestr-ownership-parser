@@ -1,55 +1,78 @@
 <?php
 
-include __DIR__ . '/ir_egrn_login.php';
+$config = include __DIR__ . DIRECTORY_SEPARATOR . 'config.php';
 
-$searchFormData = vaadinClickButton(findButtonByCaption($result, 'Запрос по правообладателю'));
-
-try {
-    $searchFormData = vaadinClickButton(findButtonByCaption($searchFormData, 'Мои заявки'));
-}
-catch(\Throwable $exception){
-    $searchFormData = vaadinClickButton(findButtonByCaption($result, 'Мои заявки'));
+if(isset($argv[1]) && $argv[1] == '--help'){
+    print "Скрипт для загрузки результатов заданий из ФГИС ЕГРН" . PHP_EOL;
+    print PHP_EOL;
+    print "Usage: php ir_egrn_download.php" . PHP_EOL;
+    exit;
 }
 
-if(!file_exists(__DIR__ . '/zip') && !@mkdir(__DIR__ . '/zip')){
-    throw new RuntimeException('Cannot create folder for resulting files');
-}
+$dbh = getDBH($config);
 
-$fh = fopen('querylist.csv', 'rb');
+$egrn = new IR_EGRN($config);
 
-$fieldQueryInput = findFieldByText($searchFormData, '');
-$buttonRefresh = findButtonByCaption($searchFormData, 'Обновить');
-$areaField = findFieldBySelectMode($searchFormData, 'single');
+// find request older than two days
+$statement = $dbh->query('
+    SELECT * FROM task
+');
+$deleteStatement = $dbh->prepare('
+    DELETE FROM task WHERE task_id = :task_id
+');
+$updateStatement = $dbh->prepare('
+    UPDATE premise
+    SET area = :area,
+        ownership = :ownership,
+        owner_name = :owner_name,
+        xml = :xml
+    WHERE premise_id = :premise_id
+');
 
-while($row = fgetcsv($fh)){
-    $queryId = $row[0];
-    $queryIdLength = strlen($queryId);
-
-    $searchFormData = vaadinQuery('windowName=1',
-        "{$appLogin['Vaadin-Security-Key']}\x1D1261\x1FPID0\x1Fheight\x1Fi\x1E755\x1FPID0\x1Fwidth\x1Fi\x1E1905\x1FPID0\x1FbrowserWidth\x1Fi\x1E911\x1FPID0\x1FbrowserHeight\x1Fi\x1Etrue\x1F{$areaField}\x1FclearSelections\x1Fb\x1E\x1F{$areaField}\x1Fselected\x1Fc\x1E{$queryId}\x1F{$fieldQueryInput}\x1Ftext\x1Fs\x1E{$queryIdLength}\x1F{$fieldQueryInput}\x1Fc\x1Fi\x1Etrue\x1F{$buttonRefresh}\x1Fstate\x1Fb\x1E1,1176,525,false,false,false,false,1,23,6\x1F{$buttonRefresh}\x1Fmousedetails\x1Fs"
-    );
-
+$counters = [
+    'success' => 0,
+    'deleted' => 0,
+    'delayed' => 0,
+    'failure' => 0,
+];
+while($row = $statement->fetch(PDO::FETCH_ASSOC)){
     try {
-        $zipSrc = $baseURL . preg_replace('#(?<=!!/).+#', findSrcByIcon($searchFormData, 'theme://img/download.png'), $location);
-
-        curl_setopt($ch, CURLOPT_URL, $zipSrc);
-        curl_setopt($ch, CURLOPT_POST, 0);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            ' image/webp,image/apng,image/*,*/*;q=0.8',
-        ]);
-        do {
-            $zipFile = curl_exec($ch);
-            $responseCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if ($responseCode >= 500 || empty($zipFile)) {
-                // @todo limit retry
-                print "Request failed, error {$responseCode}. Retry\n";
+        print "Проверяем результат по заявке № " . $row['rosreestr_id'] . PHP_EOL;
+        $zipFile = $egrn->getResult($row['rosreestr_id']);
+        if($zipFile){
+            $xmlFile = $egrn->parseZipArchive($zipFile);
+            $result = $egrn->parseXMLFile($xmlFile);
+            $update = $updateStatement->execute([
+                ':area' => $result->area,
+                ':ownership' => implode("\r\n", $result->ownership),
+                ':owner_name' => implode("\r\n", $result->names),
+                ':xml' => $result->xml,
+                ':premise_id' => $row['premise_id'],
+            ]);
+            $detele = $deleteStatement->execute([
+                ':task_id' => $row['task_id'],
+            ]);
+            $counters['success']++;
+        }
+        else{
+            if($row['date_added'] + $config['rosreestr_hang_timer'] < time()) {
+                print "Удаляем из ожидания заявку с истекшим сроком №" . $row['rosreestr_id'] . PHP_EOL;
+                $deleteStatement->execute([
+                    ':task_id' => $row['task_id'],
+                ]);
+                $counters['deleted']++;
             }
-        } while ($responseCode >= 500 || empty($zipFile));
-
-        file_put_contents(__DIR__ . '/zip/' . $queryId . '.zip', $zipFile);
+            else{
+                $counters['delayed']++;
+            }
+        }
     }
-    catch(\Throwable $exception){
-        file_put_contents('notfound.csv', implode(",", $row) . "\n", FILE_APPEND);
+    catch(Throwable $exception){
+        print "Не удалось получить данные по заявке №" . $row['rosreestr_id'] . PHP_EOL;
+        $counters['failure']++;
     }
 }
-fclose($fh);
+print "Успешно " . $counters['success'] . PHP_EOL;
+print "Удалено по таймауту " . $counters['deleted'] . PHP_EOL;
+print "Выписка не готова " . $counters['delayed'] . PHP_EOL;
+print "Ошибка обработки " . $counters['failure'] . PHP_EOL;
