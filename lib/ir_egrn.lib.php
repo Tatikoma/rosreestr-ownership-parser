@@ -9,27 +9,48 @@ class IR_EGRN{
     protected $rosreestrInterval;
     protected $anticaptchaKey;
     protected $region;
-
     protected $anticaptcha;
+    protected $captchaMethod;
+    protected $python;
+    protected $captchaSolver;
 
     protected function solveCaptcha($content){
-        if(!$this->anticaptcha) {
-            $this->anticaptcha = new ImageToText();
-            $this->anticaptcha->setVerboseMode(true);
-            $this->anticaptcha->setKey($this->anticaptchaKey);
-            $this->anticaptcha->setNumericFlag(true);
-        }
+        switch($this->captchaMethod){
+            case 'captcha_solver':
+                $result = shell_exec($x = strtr(':python :script imgData=:img', [
+                    ':python' => escapeshellarg($this->python),
+                    ':script' => escapeshellarg($this->captchaSolver),
+                    ':img' => escapeshellarg(strtr(base64_encode($content), [
+                        '+' => '.',
+                        '/' => '_',
+                    ])),
+                ]));
+                $result = preg_replace('#[^0-9]#', '', $result);
+                return $result;
+                break;
+            case 'anticaptcha':
+                if(!$this->anticaptcha) {
+                    $this->anticaptcha = new ImageToText();
+                    $this->anticaptcha->setVerboseMode(true);
+                    $this->anticaptcha->setKey($this->anticaptchaKey);
+                    $this->anticaptcha->setNumericFlag(true);
+                }
 
-        $this->anticaptcha->setBody($content);
-        if (!$this->anticaptcha->createTask()) {
-            return false;
-        }
+                $this->anticaptcha->setBody($content);
+                if (!$this->anticaptcha->createTask()) {
+                    return false;
+                }
 
-        if (!$this->anticaptcha->waitForResult()) {
-            return false;
-        }
+                if (!$this->anticaptcha->waitForResult()) {
+                    return false;
+                }
 
-        return $this->anticaptcha->getTaskSolution();
+                return $this->anticaptcha->getTaskSolution();
+                break;
+            default:
+                throw new RuntimeException('Unknown captcha solver method');
+                break;
+        }
     }
 
     public function __construct($config){
@@ -37,6 +58,9 @@ class IR_EGRN{
         $this->anticaptchaKey = $config['anticaptcha_key'];
         $this->region = $config['region'];
         $this->rosreestrInterval = $config['rosreestr_interval'];
+        $this->captchaMethod = $config['captcha_method'];
+        $this->python = $config['python'];
+        $this->captchaSolver = $config['captcha_solver'];
     }
 
     protected $baseURL = 'https://rosreestr.gov.ru';
