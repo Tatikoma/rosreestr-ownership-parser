@@ -23,6 +23,7 @@ class IR_EGRN{
                     ':img' => escapeshellarg(strtr(base64_encode($content), [
                         '+' => '.',
                         '/' => '_',
+                        '=' => '-',
                     ])),
                 ]));
                 $result = preg_replace('#[^0-9]#', '', $result);
