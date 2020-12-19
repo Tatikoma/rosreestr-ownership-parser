@@ -751,6 +751,9 @@ class IR_EGRN{
             unset($ownershipId);
 
             preg_match('#Площадь ОКС\'a:.+?<b>([^<]+)</b>#usm', $result, $area);
+            if(!count($area)){
+                preg_match('#Площадь:.+?<b>([^<]+)</b>#usm', $result, $area);
+            }
             $area = $area[1];
 
             return [
